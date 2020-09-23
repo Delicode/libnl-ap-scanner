@@ -5,9 +5,13 @@ INCLUDES=
 
 CPP=g++
 GCC=gcc
-CXXFLAGS=-std=c++14 -Wall -Wfloat-conversion -Wno-switch `pkg-config --cflags libnl-genl-3.0`
-CFLAGS=-Wall -Wfloat-conversion -Wpedantic -Wno-switch `pkg-config --cflags libnl-genl-3.0`
+CXXFLAGS=-std=c++14 -g -Wall -Wfloat-conversion -Wno-switch `pkg-config --cflags libnl-genl-3.0`
+CFLAGS=-Wall -g  -Wfloat-conversion -Wpedantic -Wno-switch `pkg-config --cflags libnl-genl-3.0`
 LDFLAGS += `pkg-config --libs libnl-genl-3.0`
+
+#CXXFLAGS=-std=c++14 -fsanitize=address -Wall -Wfloat-conversion -Wno-switch `pkg-config --cflags libnl-genl-3.0`
+#CFLAGS=-Wall -fsanitize=address -Wfloat-conversion -Wpedantic -Wno-switch `pkg-config --cflags libnl-genl-3.0`
+#LDFLAGS += `pkg-config --libs libnl-genl-3.0` -fsanitize=address
 
 SOURCES_CXX=./main.cpp
 SOURCES_C=

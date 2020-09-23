@@ -1,8 +1,9 @@
 /**
- * Code applied from libnl sources https://www.infradead.org/~tgr/libnl/
- * and example code from Python libnl port:
- * https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c
- * both of which are licensed LGPL 2.1
+ * Code applied from:
+ * - libnl sources LGPL2.1 https://www.infradead.org/~tgr/libnl/
+ * - example code from Python libnl port (LGPL2.1):
+ *   https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c
+ * - as well as iw(8) source code (MIT).
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -41,12 +42,20 @@
 #include <memory>
 #include <stdio.h>
 
-// netlink socket used to communicate with libnl
-struct nl_sock* nlsocket = NULL;
+#define ARRAY_SIZE(ar) (sizeof(ar)/sizeof(ar[0]))
+
+static unsigned char ms_oui[3]      = { 0x00, 0x50, 0xf2 };
+static unsigned char ieee80211_oui[3]   = { 0x00, 0x0f, 0xac };
+static unsigned char wfa_oui[3]     = { 0x50, 0x6f, 0x9a };
 
 struct init_scan_results {
 	int done;
 	int aborted;
+};
+
+struct print_ies_data {
+    unsigned char *ie;
+    int ielen;
 };
 
 int error_handler(struct sockaddr_nl* nla, struct nlmsgerr* err, void* arg) {
@@ -91,11 +100,388 @@ void mac_addr_n2a(char* mac_addr, unsigned char* arg) {
 	}
 }
 
-void print_ssid(unsigned char* ie, int ielen) {
+void print_ssid_escaped(const uint8_t len, const uint8_t *data)
+{
+    int i;
+
+    for (i = 0; i < len; i++) {
+        if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
+            printf("%c", data[i]);
+        else if (data[i] == ' ' &&
+             (i != 0 && i != len -1))
+            printf(" ");
+        else
+            printf("\\x%.2x", data[i]);
+    }
+}
+
+static void print_ssid(const uint8_t type, uint8_t len, const uint8_t *data,
+               const struct print_ies_data *ie_buffer)
+{
+    printf(" ");
+    print_ssid_escaped(len, data);
+    printf("\n");
+}
+
+
+static void print_auth(const uint8_t *data)
+{
+	if (memcmp(data, ms_oui, 3) == 0) {
+		switch (data[3]) {
+		case 1:
+			printf("IEEE 802.1X");
+			break;
+		case 2:
+			printf("PSK");
+			break;
+		default:
+			printf("%.02x-%.02x-%.02x:%d",
+				data[0], data[1] ,data[2], data[3]);
+			break;
+		}
+	} else if (memcmp(data, ieee80211_oui, 3) == 0) {
+		switch (data[3]) {
+		case 1:
+			printf("IEEE 802.1X");
+			break;
+		case 2:
+			printf("PSK");
+			break;
+		case 3:
+			printf("FT/IEEE 802.1X");
+			break;
+		case 4:
+			printf("FT/PSK");
+			break;
+		case 5:
+			printf("IEEE 802.1X/SHA-256");
+			break;
+		case 6:
+			printf("PSK/SHA-256");
+			break;
+		case 7:
+			printf("TDLS/TPK");
+			break;
+		case 8:
+			printf("SAE");
+			break;
+		case 9:
+			printf("FT/SAE");
+			break;
+		case 11:
+			printf("IEEE 802.1X/SUITE-B");
+			break;
+		case 12:
+			printf("IEEE 802.1X/SUITE-B-192");
+			break;
+		case 13:
+			printf("FT/IEEE 802.1X/SHA-384");
+			break;
+		case 14:
+			printf("FILS/SHA-256");
+			break;
+		case 15:
+			printf("FILS/SHA-384");
+			break;
+		case 16:
+			printf("FT/FILS/SHA-256");
+			break;
+		case 17:
+			printf("FT/FILS/SHA-384");
+			break;
+		case 18:
+			printf("OWE");
+			break;
+		default:
+			printf("%.02x-%.02x-%.02x:%d",
+				data[0], data[1] ,data[2], data[3]);
+			break;
+		}
+	} else if (memcmp(data, wfa_oui, 3) == 0) {
+		switch (data[3]) {
+		case 1:
+			printf("OSEN");
+			break;
+		case 2:
+			printf("DPP");
+			break;
+		default:
+			printf("%.02x-%.02x-%.02x:%d",
+				data[0], data[1] ,data[2], data[3]);
+			break;
+		}
+	} else
+		printf("%.02x-%.02x-%.02x:%d",
+			data[0], data[1] ,data[2], data[3]);
+}
+
+static void print_cipher(const uint8_t *data)
+{
+	if (memcmp(data, ms_oui, 3) == 0) {
+		switch (data[3]) {
+		case 0:
+			printf("Use group cipher suite");
+			break;
+		case 1:
+			printf("WEP-40");
+			break;
+		case 2:
+			printf("TKIP");
+			break;
+		case 4:
+			printf("CCMP");
+			break;
+		case 5:
+			printf("WEP-104");
+			break;
+		default:
+			printf("%.02x-%.02x-%.02x:%d",
+				data[0], data[1] ,data[2], data[3]);
+			break;
+		}
+	} else if (memcmp(data, ieee80211_oui, 3) == 0) {
+		switch (data[3]) {
+		case 0:
+			printf("Use group cipher suite");
+			break;
+		case 1:
+			printf("WEP-40");
+			break;
+		case 2:
+			printf("TKIP");
+			break;
+		case 4:
+			printf("CCMP");
+			break;
+		case 5:
+			printf("WEP-104");
+			break;
+		case 6:
+			printf("AES-128-CMAC");
+			break;
+		case 7:
+			printf("NO-GROUP");
+			break;
+		case 8:
+			printf("GCMP");
+			break;
+		default:
+			printf("%.02x-%.02x-%.02x:%d",
+				data[0], data[1] ,data[2], data[3]);
+			break;
+		}
+	} else
+		printf("%.02x-%.02x-%.02x:%d",
+			data[0], data[1] ,data[2], data[3]);
+}
+
+static void _print_rsn_ie(const char *defcipher, const char *defauth,
+			  uint8_t len, const uint8_t *data, int is_osen)
+{
+	bool first = true;
+	__u16 count, capa;
+	int i;
+
+	if (!is_osen) {
+		__u16 version;
+		version = data[0] + (data[1] << 8);
+		printf("\t * Version: %d\n", version);
+
+		data += 2;
+		len -= 2;
+	}
+
+	if (len < 4) {
+		printf("\t * Group cipher: %s\n", defcipher);
+		printf("\t * Pairwise ciphers: %s\n", defcipher);
+		return;
+	}
+
+	printf("\t * Group cipher: ");
+	print_cipher(data);
+	printf("\n");
+
+	data += 4;
+	len -= 4;
+
+	if (len < 2) {
+		printf("\t * Pairwise ciphers: %s\n", defcipher);
+		return;
+	}
+
+	count = data[0] | (data[1] << 8);
+	if (2 + (count * 4) > len)
+		goto invalid;
+
+	printf("\t * Pairwise ciphers:");
+	for (i = 0; i < count; i++) {
+		printf(" ");
+		print_cipher(data + 2 + (i * 4));
+	}
+	printf("\n");
+
+	data += 2 + (count * 4);
+	len -= 2 + (count * 4);
+
+	if (len < 2) {
+		printf("\t * Authentication suites: %s\n", defauth);
+		return;
+	}
+
+	count = data[0] | (data[1] << 8);
+	if (2 + (count * 4) > len)
+		goto invalid;
+
+	printf("\t * Authentication suites:");
+	for (i = 0; i < count; i++) {
+		printf(" ");
+		print_auth(data + 2 + (i * 4));
+	}
+	printf("\n");
+
+	data += 2 + (count * 4);
+	len -= 2 + (count * 4);
+
+	if (len >= 2) {
+		capa = data[0] | (data[1] << 8);
+		printf("\t * Capabilities:");
+		if (capa & 0x0001)
+			printf(" PreAuth");
+		if (capa & 0x0002)
+			printf(" NoPairwise");
+		switch ((capa & 0x000c) >> 2) {
+		case 0:
+			printf(" 1-PTKSA-RC");
+			break;
+		case 1:
+			printf(" 2-PTKSA-RC");
+			break;
+		case 2:
+			printf(" 4-PTKSA-RC");
+			break;
+		case 3:
+			printf(" 16-PTKSA-RC");
+			break;
+		}
+		switch ((capa & 0x0030) >> 4) {
+		case 0:
+			printf(" 1-GTKSA-RC");
+			break;
+		case 1:
+			printf(" 2-GTKSA-RC");
+			break;
+		case 2:
+			printf(" 4-GTKSA-RC");
+			break;
+		case 3:
+			printf(" 16-GTKSA-RC");
+			break;
+		}
+		if (capa & 0x0040)
+			printf(" MFP-required");
+		if (capa & 0x0080)
+			printf(" MFP-capable");
+		if (capa & 0x0200)
+			printf(" Peerkey-enabled");
+		if (capa & 0x0400)
+			printf(" SPP-AMSDU-capable");
+		if (capa & 0x0800)
+			printf(" SPP-AMSDU-required");
+		if (capa & 0x2000)
+			printf(" Extended-Key-ID");
+		printf(" (0x%.4x)\n", capa);
+		data += 2;
+		len -= 2;
+	}
+
+	if (len >= 2) {
+		int pmkid_count = data[0] | (data[1] << 8);
+
+		if (len >= 2 + 16 * pmkid_count) {
+			printf("\t * %d PMKIDs\n", pmkid_count);
+			/* not printing PMKID values */
+			data += 2 + 16 * pmkid_count;
+			len -= 2 + 16 * pmkid_count;
+		} else
+			goto invalid;
+	}
+
+	if (len >= 4) {
+		printf("\t * Group mgmt cipher suite: ");
+		print_cipher(data);
+		printf("\n");
+		data += 4;
+		len -= 4;
+	}
+
+ invalid:
+	if (len != 0) {
+		printf("\t\t * bogus tail data (%d):", len);
+		while (len) {
+			printf(" %.2x", *data);
+			data++;
+			len--;
+		}
+		printf("\n");
+	}
+}
+
+static void print_rsn_ie(const char *defcipher, const char *defauth, uint8_t len, const uint8_t *data)
+{
+    _print_rsn_ie(defcipher, defauth, len, data, 0);
+}
+
+static void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data, const struct print_ies_data *ie_buffer)
+{
+    print_rsn_ie("CCMP", "IEEE 802.1X", len, data);
+	return;
+}
+
+struct ie_print {
+    const char *name;
+    void (*print)(const uint8_t type, uint8_t len, const uint8_t *data,
+		const struct print_ies_data *ie_buffer);
+    uint8_t minlen;
+	uint8_t maxlen;
+};
+
+struct ie_print ieprinters[100];
+
+static void print_ie(const struct ie_print *p, const uint8_t type, uint8_t len,
+	const uint8_t *data, const struct print_ies_data *ie_buffer) {
+
+    int i;
+
+    if (!p->print)
+        return;
+
+    printf("\t%s:", p->name);
+    if (len < p->minlen || len > p->maxlen) {
+        if (len > 1) {
+            printf(" <invalid: %d bytes:", len);
+            for (i = 0; i < len; i++)
+                printf(" %.02x", data[i]);
+            printf(">\n");
+        } else if (len)
+            printf(" <invalid: 1 byte: %.02x>\n", data[0]);
+        else
+            printf(" <invalid: no data>\n");
+        return;
+    }
+
+    p->print(type, len, data, ie_buffer);
+}
+
+#if 0
+void print_ies(unsigned char* ie, int ielen) {
 
 	uint8_t len;
 	uint8_t* data;
 	int i;
+
+	printf(" ");
+    //[0] = { "SSID", print_ssid, 0, 32, BIT(PRINT_SCAN) | BIT(PRINT_LINK), },
+    //[48] = { "RSN", print_rsn, 2, 255, BIT(PRINT_SCAN), },
 
 	while (ielen >= 2 && ielen >= ie[1]) {
 
@@ -116,11 +502,33 @@ void print_ssid(unsigned char* ie, int ielen) {
 			}
 
 			break;
-		}
+        } else if (ie[0] == 48 && ie[1] >= 2 && ie[1] <= 255) {
+            printf("got ie type 48\n");
+        }
 
 		ielen -= ie[1] + 2;
 		ie += ie[1] + 2;
 	}
+}
+#endif
+
+void print_ies(unsigned char *ie, int ielen) {
+
+    struct print_ies_data ie_buffer = {
+        .ie = ie,
+        .ielen = ielen
+	};
+
+    if (ie == NULL || ielen < 0)
+        return;
+
+    while (ielen >= 2 && ielen - 2 >= ie[1]) {
+        if (ie[0] < ARRAY_SIZE(ieprinters) && ieprinters[ie[0]].name) {
+            print_ie(&ieprinters[ie[0]], ie[0], ie[1], ie + 2, &ie_buffer);
+        }
+        ielen -= ie[1] + 2;
+        ie += ie[1] + 2;
+    }
 }
 
 // Called by the kernel when the scan is done or has been aborted.
@@ -149,10 +557,14 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 
 	struct genlmsghdr* gnlh = (genlmsghdr*)nlmsg_data(nlmsg_hdr(msg));
 	char mac_addr[20];
+
 	struct nlattr* tb[NL80211_ATTR_MAX + 1];
 	struct nlattr* bss[NL80211_BSS_MAX + 1];
 	struct nla_policy bss_policy[NL80211_BSS_MAX + 1];
+
 	memset(bss_policy, 0, sizeof(bss_policy));
+	memset(bss, 0, sizeof(bss));
+	memset(tb, 0, sizeof(tb));
 
 	bss_policy[NL80211_BSS_TSF] = { .type = NLA_U64 };
 	bss_policy[NL80211_BSS_FREQUENCY] = { .type = NLA_U32 },
@@ -165,6 +577,34 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 	bss_policy[NL80211_BSS_STATUS] = { .type = NLA_U32 };
 	bss_policy[NL80211_BSS_SEEN_MS_AGO] = { .type = NLA_U32 };
 	bss_policy[NL80211_BSS_BEACON_IES] = { };
+
+//	struct nla_policy my_policy[MY_ATTR_MAX+1];
+//	my_policy[NL80211_ATTR_AUTH_TYPE] = { .type = NLA_U32 };
+
+/*
+enum nl80211_auth_type {
+	NL80211_AUTHTYPE_OPEN_SYSTEM,
+	NL80211_AUTHTYPE_SHARED_KEY,
+	NL80211_AUTHTYPE_FT,
+	NL80211_AUTHTYPE_NETWORK_EAP,
+	NL80211_AUTHTYPE_SAE,
+	NL80211_AUTHTYPE_FILS_SK,
+	NL80211_AUTHTYPE_FILS_SK_PFS,
+	NL80211_AUTHTYPE_FILS_PK,
+
+	__NL80211_AUTHTYPE_NUM,
+	NL80211_AUTHTYPE_MAX = __NL80211_AUTHTYPE_NUM - 1,
+	NL80211_AUTHTYPE_AUTOMATIC
+};
+
+enum nl80211_wpa_versions {
+	NL80211_WPA_VERSION_1 = 1 << 0,
+	NL80211_WPA_VERSION_2 = 1 << 1,
+	NL80211_WPA_VERSION_3 = 1 << 2,
+};
+*/
+
+//NL80211_ATTR_AUTH_TYPE
 
 	int err = nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
 	if (err < 0) {
@@ -192,10 +632,35 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 	}
 
 	mac_addr_n2a(mac_addr, (unsigned char*)nla_data(bss[NL80211_BSS_BSSID]));
-	printf("%s, ", mac_addr);
-	printf("%d MHz, ", nla_get_u32(bss[NL80211_BSS_FREQUENCY]));
-	print_ssid((unsigned char*)nla_data(bss[NL80211_BSS_INFORMATION_ELEMENTS]), nla_len(bss[NL80211_BSS_INFORMATION_ELEMENTS]));
-	printf("\n");
+
+	printf(" %s", mac_addr);
+	if (bss[NL80211_BSS_SIGNAL_MBM]) {
+		printf(" signal strength: %d", nla_get_u8(bss[NL80211_BSS_SIGNAL_MBM]));
+	} else if (bss[NL80211_BSS_SIGNAL_UNSPEC]) {
+		printf(" signal strength: %d", nla_get_u8(bss[NL80211_BSS_SIGNAL_UNSPEC]));
+	}
+	if (bss[NL80211_BSS_FREQUENCY]) {
+		printf(" %d MHz", nla_get_u32(bss[NL80211_BSS_FREQUENCY]));
+	}
+
+	//print_ies((unsigned char*)nla_data(bss[NL80211_BSS_INFORMATION_ELEMENTS]), nla_len(bss[NL80211_BSS_INFORMATION_ELEMENTS]));
+	//printf("\n");
+
+    if (bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
+
+        struct nlattr* ies = bss[NL80211_BSS_INFORMATION_ELEMENTS];
+        struct nlattr* bcnies = bss[NL80211_BSS_BEACON_IES];
+
+        if (bss[NL80211_BSS_PRESP_DATA] || (bcnies && (nla_len(ies) != nla_len(bcnies) ||
+			memcmp(nla_data(ies), nla_data(bcnies), nla_len(ies))))) {
+		}
+
+        print_ies((unsigned char*)nla_data(ies), nla_len(ies));
+    }
+
+	if (bss[NL80211_BSS_BEACON_IES]) {
+		print_ies((unsigned char*)nla_data(bss[NL80211_BSS_BEACON_IES]), nla_len(bss[NL80211_BSS_BEACON_IES]));
+	}
 
 	return NL_SKIP;
 }
@@ -367,6 +832,10 @@ int main(int argc, char** argv) {
 		printf("usage: programname wifi_adapter_name\nie: ./programname wlp2s0.\n");
 		return 1;
 	}
+
+	memset(ieprinters, 0, sizeof(ieprinters));
+	ieprinters[0] = { "SSID", print_ssid, 0, 32 };
+	ieprinters[48] = { "RSN", print_rsn, 2, 255, };
 
 	const char* ifname = argv[1];
 	printf("Using interface: %s\n", ifname);
