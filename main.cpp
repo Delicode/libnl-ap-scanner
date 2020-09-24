@@ -44,9 +44,21 @@
 
 #define ARRAY_SIZE(ar) (sizeof(ar)/sizeof(ar[0]))
 
-static unsigned char ms_oui[3]      = { 0x00, 0x50, 0xf2 };
-static unsigned char ieee80211_oui[3]   = { 0x00, 0x0f, 0xac };
-static unsigned char wfa_oui[3]     = { 0x50, 0x6f, 0x9a };
+// These are from iw source code, and they related to parsing authentication suites
+const unsigned char ms_oui[3] = { 0x00, 0x50, 0xf2 };
+const unsigned char ieee80211_oui[3]   = { 0x00, 0x0f, 0xac };
+const unsigned char wfa_oui[3] = { 0x50, 0x6f, 0x9a };
+
+// global variable that contains the MAC address for the current scan result,
+// used to make sure every print contains clarification for which MAC the data is.
+char current_mac[20];
+
+const char* DISCOVER_STR = "AP_DISCOVERED:";
+const char* DATA_STR = "AP_DATA:";
+
+inline void dataline() {
+	printf("%s%s,", DATA_STR, current_mac);
+}
 
 struct init_scan_results {
 	int done;
@@ -100,32 +112,30 @@ void mac_addr_n2a(char* mac_addr, unsigned char* arg) {
 	}
 }
 
-void print_ssid_escaped(const uint8_t len, const uint8_t *data)
-{
+void print_ssid(const uint8_t type, uint8_t len, const uint8_t *data,
+	const struct print_ies_data *ie_buffer) {
+
     int i;
 
+	dataline();
+	printf("ssid:");
     for (i = 0; i < len; i++) {
-        if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
+        if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\') {
             printf("%c", data[i]);
-        else if (data[i] == ' ' &&
-             (i != 0 && i != len -1))
+        } else if (data[i] == ' ' && (i != 0 && i != len -1)) {
             printf(" ");
-        else
+        } else {
             printf("\\x%.2x", data[i]);
+		}
     }
+	printf("\n");
 }
 
-static void print_ssid(const uint8_t type, uint8_t len, const uint8_t *data,
-               const struct print_ies_data *ie_buffer)
-{
-    printf(" ");
-    print_ssid_escaped(len, data);
-    printf("\n");
-}
+void print_auth(const uint8_t *data) {
 
+	// This is copied from iw sources, and I have no idea how this works
+	// There's a lot of magic numbers going around.
 
-static void print_auth(const uint8_t *data)
-{
 	if (memcmp(data, ms_oui, 3) == 0) {
 		switch (data[3]) {
 		case 1:
@@ -135,8 +145,7 @@ static void print_auth(const uint8_t *data)
 			printf("PSK");
 			break;
 		default:
-			printf("%.02x-%.02x-%.02x:%d",
-				data[0], data[1] ,data[2], data[3]);
+			printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
 			break;
 		}
 	} else if (memcmp(data, ieee80211_oui, 3) == 0) {
@@ -193,8 +202,7 @@ static void print_auth(const uint8_t *data)
 			printf("OWE");
 			break;
 		default:
-			printf("%.02x-%.02x-%.02x:%d",
-				data[0], data[1] ,data[2], data[3]);
+			printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
 			break;
 		}
 	} else if (memcmp(data, wfa_oui, 3) == 0) {
@@ -206,17 +214,17 @@ static void print_auth(const uint8_t *data)
 			printf("DPP");
 			break;
 		default:
-			printf("%.02x-%.02x-%.02x:%d",
-				data[0], data[1] ,data[2], data[3]);
+			printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
 			break;
 		}
-	} else
-		printf("%.02x-%.02x-%.02x:%d",
-			data[0], data[1] ,data[2], data[3]);
+	} else {
+		printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
+	}
 }
 
-static void print_cipher(const uint8_t *data)
-{
+// Copied from iw sources, no idea what the magic values are
+static void print_cipher(const uint8_t *data) {
+
 	if (memcmp(data, ms_oui, 3) == 0) {
 		switch (data[3]) {
 		case 0:
@@ -235,8 +243,7 @@ static void print_cipher(const uint8_t *data)
 			printf("WEP-104");
 			break;
 		default:
-			printf("%.02x-%.02x-%.02x:%d",
-				data[0], data[1] ,data[2], data[3]);
+			printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
 			break;
 		}
 	} else if (memcmp(data, ieee80211_oui, 3) == 0) {
@@ -266,38 +273,41 @@ static void print_cipher(const uint8_t *data)
 			printf("GCMP");
 			break;
 		default:
-			printf("%.02x-%.02x-%.02x:%d",
-				data[0], data[1] ,data[2], data[3]);
+			printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
 			break;
 		}
-	} else
-		printf("%.02x-%.02x-%.02x:%d",
-			data[0], data[1] ,data[2], data[3]);
+	} else {
+		printf("%.02x-%.02x-%.02x:%d", data[0], data[1] ,data[2], data[3]);
+	}
 }
 
-static void _print_rsn_ie(const char *defcipher, const char *defauth,
-			  uint8_t len, const uint8_t *data, int is_osen)
-{
-	bool first = true;
+// from iw source code, no idea what's going on here
+void print_rsn_ie(const char *defcipher, const char *defauth,
+	uint8_t len, const uint8_t *data) {
+
 	__u16 count, capa;
 	int i;
+	int is_osen = 0;
 
+	dataline();
 	if (!is_osen) {
 		__u16 version;
 		version = data[0] + (data[1] << 8);
-		printf("\t * Version: %d\n", version);
-
+		printf("RSN version:%d\n", version);
 		data += 2;
 		len -= 2;
 	}
 
 	if (len < 4) {
-		printf("\t * Group cipher: %s\n", defcipher);
-		printf("\t * Pairwise ciphers: %s\n", defcipher);
+		dataline();
+		printf("RSN group cipher:%s\n", defcipher);
+		dataline();
+		printf("RSN pairwise ciphers:%s\n", defcipher);
 		return;
 	}
 
-	printf("\t * Group cipher: ");
+	dataline();
+	printf("RSN group cipher:");
 	print_cipher(data);
 	printf("\n");
 
@@ -305,17 +315,20 @@ static void _print_rsn_ie(const char *defcipher, const char *defauth,
 	len -= 4;
 
 	if (len < 2) {
-		printf("\t * Pairwise ciphers: %s\n", defcipher);
+		dataline();
+		printf("RSN pairwise ciphers:%s\n", defcipher);
 		return;
 	}
 
 	count = data[0] | (data[1] << 8);
-	if (2 + (count * 4) > len)
+	if (2 + (count * 4) > len) {
 		goto invalid;
+	}
 
-	printf("\t * Pairwise ciphers:");
+	dataline();
+	printf("RSN pairwise ciphers:");
 	for (i = 0; i < count; i++) {
-		printf(" ");
+		printf(",");
 		print_cipher(data + 2 + (i * 4));
 	}
 	printf("\n");
@@ -324,15 +337,18 @@ static void _print_rsn_ie(const char *defcipher, const char *defauth,
 	len -= 2 + (count * 4);
 
 	if (len < 2) {
-		printf("\t * Authentication suites: %s\n", defauth);
+		dataline();
+		printf("RSN authentication suites:%s\n", defauth);
 		return;
 	}
 
 	count = data[0] | (data[1] << 8);
-	if (2 + (count * 4) > len)
+	if (2 + (count * 4) > len) {
 		goto invalid;
+	}
 
-	printf("\t * Authentication suites:");
+	dataline();
+	printf("RSN authentication suites:");
 	for (i = 0; i < count; i++) {
 		printf(" ");
 		print_auth(data + 2 + (i * 4));
@@ -344,7 +360,8 @@ static void _print_rsn_ie(const char *defcipher, const char *defauth,
 
 	if (len >= 2) {
 		capa = data[0] | (data[1] << 8);
-		printf("\t * Capabilities:");
+		dataline();
+		printf("RSN capabilities:");
 		if (capa & 0x0001)
 			printf(" PreAuth");
 		if (capa & 0x0002)
@@ -389,34 +406,39 @@ static void _print_rsn_ie(const char *defcipher, const char *defauth,
 			printf(" SPP-AMSDU-required");
 		if (capa & 0x2000)
 			printf(" Extended-Key-ID");
-		printf(" (0x%.4x)\n", capa);
+		printf(" (0x%.4x)", capa);
 		data += 2;
 		len -= 2;
+		printf("\n");
 	}
 
 	if (len >= 2) {
 		int pmkid_count = data[0] | (data[1] << 8);
 
 		if (len >= 2 + 16 * pmkid_count) {
-			printf("\t * %d PMKIDs\n", pmkid_count);
+			dataline();
+			printf("RSN PMKID count: %d\n", pmkid_count);
 			/* not printing PMKID values */
 			data += 2 + 16 * pmkid_count;
 			len -= 2 + 16 * pmkid_count;
-		} else
+		} else {
 			goto invalid;
+		}
 	}
 
 	if (len >= 4) {
-		printf("\t * Group mgmt cipher suite: ");
+		dataline();
+		printf("RSN group mgmt cipher suite:");
 		print_cipher(data);
-		printf("\n");
 		data += 4;
 		len -= 4;
+		printf("\n");
 	}
 
- invalid:
+invalid:
 	if (len != 0) {
-		printf("\t\t * bogus tail data (%d):", len);
+		dataline();
+		printf("bogus tail data:%d", len);
 		while (len) {
 			printf(" %.2x", *data);
 			data++;
@@ -424,103 +446,71 @@ static void _print_rsn_ie(const char *defcipher, const char *defauth,
 		}
 		printf("\n");
 	}
+
 }
 
-static void print_rsn_ie(const char *defcipher, const char *defauth, uint8_t len, const uint8_t *data)
-{
-    _print_rsn_ie(defcipher, defauth, len, data, 0);
-}
-
-static void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data, const struct print_ies_data *ie_buffer)
-{
+// from iw source code
+void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
+	const struct print_ies_data *ie_buffer) {
     print_rsn_ie("CCMP", "IEEE 802.1X", len, data);
-	return;
 }
 
+// this struct is used to create a handler for specific magic values of
+// IE (information element) in the wifi probe or beacon responses. From what
+// I gather, each IE requires a bit different type of parsing, and what I do
+// here is just directly copied from how iw does it. There's tons of magic
+// values in the code, and I couldn't figure out where they are defined.
 struct ie_print {
-    const char *name;
+    const char* name;
     void (*print)(const uint8_t type, uint8_t len, const uint8_t *data,
 		const struct print_ies_data *ie_buffer);
     uint8_t minlen;
 	uint8_t maxlen;
 };
 
-struct ie_print ieprinters[100];
+// This array size needs to be adjusted if magic values go beyond it. The array
+// contains empty elements for each type of IE that is not handled and is only 
+// modified at those points where we have an IE handler. See how it is done in
+// the beginning of main()
+const int MAX_IE_MAGIC = 255;
+struct ie_print ieprinters[MAX_IE_MAGIC];
 
+// print a single IE parsed from a probe request or beacon response
 static void print_ie(const struct ie_print *p, const uint8_t type, uint8_t len,
 	const uint8_t *data, const struct print_ies_data *ie_buffer) {
 
-    int i;
-
-    if (!p->print)
+	// If no printer function is defined for type of IE
+    if (p->print == NULL) {
         return;
+	}
 
-    printf("\t%s:", p->name);
+    //printf(",%s:", p->name);
+
     if (len < p->minlen || len > p->maxlen) {
         if (len > 1) {
-            printf(" <invalid: %d bytes:", len);
-            for (i = 0; i < len; i++)
-                printf(" %.02x", data[i]);
-            printf(">\n");
-        } else if (len)
-            printf(" <invalid: 1 byte: %.02x>\n", data[0]);
-        else
-            printf(" <invalid: no data>\n");
+            printf(",invalid %d bytes:", len);
+        } else if (len) {
+            printf(",invalid:1 byte %.02x>\n", data[0]);
+		}  else {
+            printf(",invalid:no data");
+		}
         return;
     }
 
     p->print(type, len, data, ie_buffer);
 }
 
-#if 0
-void print_ies(unsigned char* ie, int ielen) {
-
-	uint8_t len;
-	uint8_t* data;
-	int i;
-
-	printf(" ");
-    //[0] = { "SSID", print_ssid, 0, 32, BIT(PRINT_SCAN) | BIT(PRINT_LINK), },
-    //[48] = { "RSN", print_rsn, 2, 255, BIT(PRINT_SCAN), },
-
-	while (ielen >= 2 && ielen >= ie[1]) {
-
-		if (ie[0] == 0 && ie[1] >= 0 && ie[1] <= 32) {
-
-			len = ie[1];
-			data = ie + 2;
-
-			for (i = 0; i < len; i++) {
-
-				if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\') {
-					printf("%c", data[i]);
-				} else if (data[i] == ' ' && (i != 0 && i != len -1)) {
-					printf(" ");
-				} else {
-					printf("\\x%.2x", data[i]);
-				}
-			}
-
-			break;
-        } else if (ie[0] == 48 && ie[1] >= 2 && ie[1] <= 255) {
-            printf("got ie type 48\n");
-        }
-
-		ielen -= ie[1] + 2;
-		ie += ie[1] + 2;
-	}
-}
-#endif
-
+// Go through all information elements and print them if a printer for them is defined
 void print_ies(unsigned char *ie, int ielen) {
+
+    if (ie == NULL || ielen < 0) {
+        return;
+	}
 
     struct print_ies_data ie_buffer = {
         .ie = ie,
         .ielen = ielen
 	};
-
-    if (ie == NULL || ielen < 0)
-        return;
 
     while (ielen >= 2 && ielen - 2 >= ie[1]) {
         if (ie[0] < ARRAY_SIZE(ieprinters) && ieprinters[ie[0]].name) {
@@ -531,18 +521,16 @@ void print_ies(unsigned char *ie, int ielen) {
     }
 }
 
-// Called by the kernel when the scan is done or has been aborted.
-int valid_data_cb(struct nl_msg* msg, void* arg) {
+// Called by the kernel when the scan is done or has been aborted
+int scan_finished_cb(struct nl_msg* msg, void* arg) {
 
 	struct genlmsghdr* gnlh = (genlmsghdr*)nlmsg_data(nlmsg_hdr(msg));
 	struct init_scan_results* results = (init_scan_results*)arg;
 
 	if (gnlh->cmd == NL80211_CMD_SCAN_ABORTED) {
-		printf("Got NL80211_CMD_SCAN_ABORTED.\n");
 		results->done = 1;
 		results->aborted = 1;
     } else if (gnlh->cmd == NL80211_CMD_NEW_SCAN_RESULTS) {
-        printf("Got NL80211_CMD_NEW_SCAN_RESULTS.\n");
         results->done = 1;
         results->aborted = 0;
     }
@@ -551,15 +539,22 @@ int valid_data_cb(struct nl_msg* msg, void* arg) {
 	return NL_SKIP;
 }
 
-
 // Called by the kernel with a dump of the successful scan's data. Called for each SSID.
 int receive_scan_result(struct nl_msg *msg, void *arg) {
 
 	struct genlmsghdr* gnlh = (genlmsghdr*)nlmsg_data(nlmsg_hdr(msg));
-	char mac_addr[20];
 
+	// Container for netlink attribute indices, each pointing to different parts of the
+	// netlink message stream. These can be used to then parse further attributes from
+	// the stream. Go read netlink documentation and see if you have more luck
+	// understanding how the messaging works.
 	struct nlattr* tb[NL80211_ATTR_MAX + 1];
+
+	// container for parsing the access point's basic service set information (BSS)
 	struct nlattr* bss[NL80211_BSS_MAX + 1];
+
+	// container specifying the types and lengths of data to be parsed from the netlink
+	// message, I think. The whole message parsing side of netlink is confusing.
 	struct nla_policy bss_policy[NL80211_BSS_MAX + 1];
 
 	memset(bss_policy, 0, sizeof(bss_policy));
@@ -578,34 +573,6 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 	bss_policy[NL80211_BSS_SEEN_MS_AGO] = { .type = NLA_U32 };
 	bss_policy[NL80211_BSS_BEACON_IES] = { };
 
-//	struct nla_policy my_policy[MY_ATTR_MAX+1];
-//	my_policy[NL80211_ATTR_AUTH_TYPE] = { .type = NLA_U32 };
-
-/*
-enum nl80211_auth_type {
-	NL80211_AUTHTYPE_OPEN_SYSTEM,
-	NL80211_AUTHTYPE_SHARED_KEY,
-	NL80211_AUTHTYPE_FT,
-	NL80211_AUTHTYPE_NETWORK_EAP,
-	NL80211_AUTHTYPE_SAE,
-	NL80211_AUTHTYPE_FILS_SK,
-	NL80211_AUTHTYPE_FILS_SK_PFS,
-	NL80211_AUTHTYPE_FILS_PK,
-
-	__NL80211_AUTHTYPE_NUM,
-	NL80211_AUTHTYPE_MAX = __NL80211_AUTHTYPE_NUM - 1,
-	NL80211_AUTHTYPE_AUTOMATIC
-};
-
-enum nl80211_wpa_versions {
-	NL80211_WPA_VERSION_1 = 1 << 0,
-	NL80211_WPA_VERSION_2 = 1 << 1,
-	NL80211_WPA_VERSION_3 = 1 << 2,
-};
-*/
-
-//NL80211_ATTR_AUTH_TYPE
-
 	int err = nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
 	if (err < 0) {
 		printf("error creating attribute indices from scan message: %d, %s\n", err, nl_geterror(err));
@@ -617,35 +584,39 @@ enum nl80211_wpa_versions {
 		return NL_SKIP;
 	}
 
+	// BSS information is a nested attribute, so a second parse call is needed
 	err = nla_parse_nested(bss, NL80211_BSS_MAX, tb[NL80211_ATTR_BSS], bss_policy);
 	if (err < 0) {
 		printf("failed to parse nested attributes: %d, %s\n", err, nl_geterror(err));
 		return NL_SKIP;
 	}
 
-	if (!bss[NL80211_BSS_BSSID]) {
+	// If BSSID or IE is missing, we can't parse anything beyond this point
+	if (!bss[NL80211_BSS_BSSID] || !bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
 		return NL_SKIP;
 	}
 
-	if (!bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
-		return NL_SKIP;
-	}
+	memset(current_mac, '\0', sizeof(current_mac));
+	mac_addr_n2a(current_mac, (unsigned char*)nla_data(bss[NL80211_BSS_BSSID]));
 
-	mac_addr_n2a(mac_addr, (unsigned char*)nla_data(bss[NL80211_BSS_BSSID]));
+	printf("%s%s\n", DISCOVER_STR, current_mac);
 
-	printf(" %s", mac_addr);
 	if (bss[NL80211_BSS_SIGNAL_MBM]) {
-		printf(" signal strength: %d", nla_get_u8(bss[NL80211_BSS_SIGNAL_MBM]));
+		dataline();
+		printf("signal strength:%d\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_MBM]));
 	} else if (bss[NL80211_BSS_SIGNAL_UNSPEC]) {
-		printf(" signal strength: %d", nla_get_u8(bss[NL80211_BSS_SIGNAL_UNSPEC]));
+		dataline();
+		printf("signal strength:%d\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_UNSPEC]));
 	}
+
 	if (bss[NL80211_BSS_FREQUENCY]) {
-		printf(" %d MHz", nla_get_u32(bss[NL80211_BSS_FREQUENCY]));
+		dataline();
+		printf("frequency:%d MHz\n", nla_get_u32(bss[NL80211_BSS_FREQUENCY]));
 	}
 
-	//print_ies((unsigned char*)nla_data(bss[NL80211_BSS_INFORMATION_ELEMENTS]), nla_len(bss[NL80211_BSS_INFORMATION_ELEMENTS]));
-	//printf("\n");
-
+	// Information element parsing is based entirely on iw source code. There's a ton of undocumented
+	// magic values going around, and I didn't really get an understanding how IE is bundled into
+	// scan responses, but it seems to be binary data of custom structure.	
     if (bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
 
         struct nlattr* ies = bss[NL80211_BSS_INFORMATION_ELEMENTS];
@@ -658,9 +629,13 @@ enum nl80211_wpa_versions {
         print_ies((unsigned char*)nla_data(ies), nla_len(ies));
     }
 
+	// There can be both beacon responses and probe requests in the same scan result, and they
+	// can contain the same data. This can result in duplicates being printed.
 	if (bss[NL80211_BSS_BEACON_IES]) {
 		print_ies((unsigned char*)nla_data(bss[NL80211_BSS_BEACON_IES]), nla_len(bss[NL80211_BSS_BEACON_IES]));
 	}
+
+	printf("\n");
 
 	return NL_SKIP;
 }
@@ -750,7 +725,7 @@ int do_scan_trigger(struct nl_sock* socket, int if_index, int family_id) {
 	ssids_to_scan = NULL;
 
 	// Add callbacks - apparently the same callback handle is used for all of them?
-	ret = nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_data_cb, &results);
+	ret = nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, scan_finished_cb, &results);
 	if (ret < 0) {
 		printf("Failed setting NL_CB_VALID callback: %d, %s\n", ret, nl_geterror(ret));
 		return 1;
@@ -833,9 +808,13 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	// Specify information element parsers. I don't know where one finds what these
+	// magic values are supposed to be. They are copied from iw source.
 	memset(ieprinters, 0, sizeof(ieprinters));
 	ieprinters[0] = { "SSID", print_ssid, 0, 32 };
 	ieprinters[48] = { "RSN", print_rsn, 2, 255, };
+
+	memset(current_mac, '\0', sizeof(current_mac));
 
 	const char* ifname = argv[1];
 	printf("Using interface: %s\n", ifname);
@@ -856,6 +835,7 @@ int main(int argc, char** argv) {
 
 	struct nl_msg* msg = NULL;
 
+	// cleanup when falling out of scope
 	std::shared_ptr<void> defer(nullptr, [&](...){
 		if (nlsocket) {
 			nl_socket_free(nlsocket);
@@ -892,13 +872,12 @@ int main(int argc, char** argv) {
 
 	// get info for all SSIDs detected
 
-	// Allocate a message
 	msg = nlmsg_alloc();
 
 	// Setup which command to run
 	genlmsg_put(msg, 0, 0, family_id, 0, NLM_F_DUMP, NL80211_CMD_GET_SCAN, 0);
 
-	// Add message attribute specifying which interface to use.
+	// Add message attribute specifying which interface to use
 	nla_put_u32(msg, NL80211_ATTR_IFINDEX, if_index);
 
 	// Add callback for getting data
@@ -906,15 +885,18 @@ int main(int argc, char** argv) {
 
 	// Send the message
 	int ret = nl_send_auto(nlsocket, msg);
-
-	printf("NL80211_CMD_GET_SCAN sent %d bytes.\n", ret);
+	if (ret < 0) {
+		printf("nl_send_auto() failed with: %d, %s\n", ret, nl_geterror(ret));
+		return 1;
+	}
 
 	// wait for the message to go through
 	ret = nl_recvmsgs_default(nlsocket);
 
+	// TODO: handle invalid number of bytes written
 	if (ret < 0) {
-		printf("ERROR: nl_recvmsgs_default() returned %d (%s).\n", ret, nl_geterror(-ret));
-		return ret;
+		printf("ERROR: nl_recvmsgs_default() failed with %d, %s\n", ret, nl_geterror(ret));
+		return 1;
 	}
 
 	return 0;
