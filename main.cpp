@@ -603,10 +603,10 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 
 	if (bss[NL80211_BSS_SIGNAL_MBM]) {
 		dataline();
-		printf("signal strength:%d\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_MBM]));
+		printf("signal strength:%d mBm\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_MBM]));
 	} else if (bss[NL80211_BSS_SIGNAL_UNSPEC]) {
 		dataline();
-		printf("signal strength:%d\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_UNSPEC]));
+		printf("signal strength:%d units\n", nla_get_u8(bss[NL80211_BSS_SIGNAL_UNSPEC]));
 	}
 
 	if (bss[NL80211_BSS_FREQUENCY]) {
