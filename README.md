@@ -50,7 +50,7 @@ AP_DATA:70:df:2f:9e:0f:40,RSN authentication suites: IEEE 802.1X
 AP_DATA:70:df:2f:9e:0f:40,RSN capabilities: 4-PTKSA-RC 4-GTKSA-RC (0x0028)
 ```
 
-Lines beginning with `AP_DISCOVER` and `AP_DATA` are intended for parsing.
+Lines beginning with `AP_DISCOVERED` and `AP_DATA` are intended for parsing.
 
 ### Dependencies
 
