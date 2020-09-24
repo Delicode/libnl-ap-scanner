@@ -50,7 +50,7 @@ AP_DATA:70:df:2f:9e:0f:40,RSN authentication suites: IEEE 802.1X
 AP_DATA:70:df:2f:9e:0f:40,RSN capabilities: 4-PTKSA-RC 4-GTKSA-RC (0x0028)
 ```
 
-Lines beginning with `AP_DISCOVERED` and `AP_DATA` are intended for parsing.
+Lines beginning with `AP_DISCOVERED` and `AP_DATA` are intended for parsing. Of note is that some data may be printed twice. This is because the BSS (Basic Service Set) in an access point scan response may contain IEs (Information Elements) from both probe requests and beacon responses.
 
 ### Dependencies
 
