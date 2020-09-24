@@ -2,7 +2,7 @@
  * Code applied from:
  * - libnl sources LGPL2.1 https://www.infradead.org/~tgr/libnl/
  * - example code from Python libnl port (LGPL2.1):
- *   https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c
+ *	 https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c
  * - as well as iw(8) source code (MIT).
  * 
  * This library is free software; you can redistribute it and/or
@@ -66,8 +66,8 @@ struct init_scan_results {
 };
 
 struct print_ies_data {
-    unsigned char *ie;
-    int ielen;
+	unsigned char *ie;
+	int ielen;
 };
 
 int error_handler(struct sockaddr_nl* nla, struct nlmsgerr* err, void* arg) {
@@ -115,19 +115,19 @@ void mac_addr_n2a(char* mac_addr, unsigned char* arg) {
 void print_ssid(const uint8_t type, uint8_t len, const uint8_t *data,
 	const struct print_ies_data *ie_buffer) {
 
-    int i;
+	int i;
 
 	dataline();
 	printf("ssid:");
-    for (i = 0; i < len; i++) {
-        if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\') {
-            printf("%c", data[i]);
-        } else if (data[i] == ' ' && (i != 0 && i != len -1)) {
-            printf(" ");
-        } else {
-            printf("\\x%.2x", data[i]);
+	for (i = 0; i < len; i++) {
+		if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\') {
+			printf("%c", data[i]);
+		} else if (data[i] == ' ' && (i != 0 && i != len -1)) {
+			printf(" ");
+		} else {
+			printf("\\x%.2x", data[i]);
 		}
-    }
+	}
 	printf("\n");
 }
 
@@ -452,7 +452,7 @@ invalid:
 // from iw source code
 void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
 	const struct print_ies_data *ie_buffer) {
-    print_rsn_ie("CCMP", "IEEE 802.1X", len, data);
+	print_rsn_ie("CCMP", "IEEE 802.1X", len, data);
 }
 
 // this struct is used to create a handler for specific magic values of
@@ -461,10 +461,10 @@ void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
 // here is just directly copied from how iw does it. There's tons of magic
 // values in the code, and I couldn't figure out where they are defined.
 struct ie_print {
-    const char* name;
-    void (*print)(const uint8_t type, uint8_t len, const uint8_t *data,
+	const char* name;
+	void (*print)(const uint8_t type, uint8_t len, const uint8_t *data,
 		const struct print_ies_data *ie_buffer);
-    uint8_t minlen;
+	uint8_t minlen;
 	uint8_t maxlen;
 };
 
@@ -480,45 +480,45 @@ static void print_ie(const struct ie_print *p, const uint8_t type, uint8_t len,
 	const uint8_t *data, const struct print_ies_data *ie_buffer) {
 
 	// If no printer function is defined for type of IE
-    if (p->print == NULL) {
-        return;
+	if (p->print == NULL) {
+		return;
 	}
 
-    //printf(",%s:", p->name);
+	//printf(",%s:", p->name);
 
-    if (len < p->minlen || len > p->maxlen) {
-        if (len > 1) {
-            printf(",invalid %d bytes:", len);
-        } else if (len) {
-            printf(",invalid:1 byte %.02x>\n", data[0]);
+	if (len < p->minlen || len > p->maxlen) {
+		if (len > 1) {
+			printf(",invalid %d bytes:", len);
+		} else if (len) {
+			printf(",invalid:1 byte %.02x>\n", data[0]);
 		}  else {
-            printf(",invalid:no data");
+			printf(",invalid:no data");
 		}
-        return;
-    }
+		return;
+	}
 
-    p->print(type, len, data, ie_buffer);
+	p->print(type, len, data, ie_buffer);
 }
 
 // Go through all information elements and print them if a printer for them is defined
 void print_ies(unsigned char *ie, int ielen) {
 
-    if (ie == NULL || ielen < 0) {
-        return;
+	if (ie == NULL || ielen < 0) {
+		return;
 	}
 
-    struct print_ies_data ie_buffer = {
-        .ie = ie,
-        .ielen = ielen
+	struct print_ies_data ie_buffer = {
+		.ie = ie,
+		.ielen = ielen
 	};
 
-    while (ielen >= 2 && ielen - 2 >= ie[1]) {
-        if (ie[0] < ARRAY_SIZE(ieprinters) && ieprinters[ie[0]].name) {
-            print_ie(&ieprinters[ie[0]], ie[0], ie[1], ie + 2, &ie_buffer);
-        }
-        ielen -= ie[1] + 2;
-        ie += ie[1] + 2;
-    }
+	while (ielen >= 2 && ielen - 2 >= ie[1]) {
+		if (ie[0] < ARRAY_SIZE(ieprinters) && ieprinters[ie[0]].name) {
+			print_ie(&ieprinters[ie[0]], ie[0], ie[1], ie + 2, &ie_buffer);
+		}
+		ielen -= ie[1] + 2;
+		ie += ie[1] + 2;
+	}
 }
 
 // Called by the kernel when the scan is done or has been aborted
@@ -530,10 +530,10 @@ int scan_finished_cb(struct nl_msg* msg, void* arg) {
 	if (gnlh->cmd == NL80211_CMD_SCAN_ABORTED) {
 		results->done = 1;
 		results->aborted = 1;
-    } else if (gnlh->cmd == NL80211_CMD_NEW_SCAN_RESULTS) {
-        results->done = 1;
-        results->aborted = 0;
-    }
+	} else if (gnlh->cmd == NL80211_CMD_NEW_SCAN_RESULTS) {
+		results->done = 1;
+		results->aborted = 0;
+	}
 	// else probably an uninteresting multicast message.
 
 	return NL_SKIP;
@@ -617,17 +617,17 @@ int receive_scan_result(struct nl_msg *msg, void *arg) {
 	// Information element parsing is based entirely on iw source code. There's a ton of undocumented
 	// magic values going around, and I didn't really get an understanding how IE is bundled into
 	// scan responses, but it seems to be binary data of custom structure.	
-    if (bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
+	if (bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
 
-        struct nlattr* ies = bss[NL80211_BSS_INFORMATION_ELEMENTS];
-        struct nlattr* bcnies = bss[NL80211_BSS_BEACON_IES];
+		struct nlattr* ies = bss[NL80211_BSS_INFORMATION_ELEMENTS];
+		struct nlattr* bcnies = bss[NL80211_BSS_BEACON_IES];
 
-        if (bss[NL80211_BSS_PRESP_DATA] || (bcnies && (nla_len(ies) != nla_len(bcnies) ||
+		if (bss[NL80211_BSS_PRESP_DATA] || (bcnies && (nla_len(ies) != nla_len(bcnies) ||
 			memcmp(nla_data(ies), nla_data(bcnies), nla_len(ies))))) {
 		}
 
-        print_ies((unsigned char*)nla_data(ies), nla_len(ies));
-    }
+		print_ies((unsigned char*)nla_data(ies), nla_len(ies));
+	}
 
 	// There can be both beacon responses and probe requests in the same scan result, and they
 	// can contain the same data. This can result in duplicates being printed.
