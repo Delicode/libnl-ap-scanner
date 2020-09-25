@@ -68,7 +68,7 @@ When I started working on this tool, I had to start learning the WIFI protocol, 
 
 The is code is applied from:
 
-* libnl sources: [https://www.infradead.org/~tgr/libnl/](https://www.infradead.org/~tgr/libnl/])
+* libnl sources: [https://www.infradead.org/~tgr/libnl/](https://www.infradead.org/~tgr/libnl/)
 * example code from Python libnl port: [https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c](https://github.com/Robpol86/libnl/blob/master/example_c/scan_access_points.c)
 * iw(8) source code: [https://git.kernel.org/pub/scm/linux/kernel/git/jberg/iw.git](https://git.kernel.org/pub/scm/linux/kernel/git/jberg/iw.git)
 
